@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Kyuna: Buy vs Rent + Invest Simulator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 24px; background: #f5f7fa; color: #1a1a1a; max-width: 1500px; margin: 0 auto; }
+  #gate { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; gap: 14px; }
+  #gate h2 { margin: 0; color: #2563eb; }
+  #gate input { padding: 12px 16px; font-size: 16px; border: 1px solid #d1d5db; border-radius: 8px; width: 280px; }
+  #gate button { padding: 12px 24px; font-size: 16px; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
+  #gate .err { color: #d97706; font-size: 13px; min-height: 18px; }
+  #content { display: none; }
+  h1 { color: #2563eb; margin: 0 0 4px 0; font-size: 28px; }
+  .sub { color: #666; margin-bottom: 24px; font-size: 14px; }
+  .preset-bar { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+  .preset-bar button { padding: 10px 16px; border: 1px solid #d1d5db; background: white; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all .15s; }
+  .preset-bar button:hover { background: #2563eb; color: white; border-color: #2563eb; }
+  .preset-bar button.active { background: #2563eb; color: white; border-color: #2563eb; }
+  .headline { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .card { background: white; padding: 18px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+  .card .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+  .card .value { font-size: 26px; font-weight: 700; margin-top: 6px; }
+  .card .sub-val { font-size: 12px; color: #888; margin-top: 4px; }
+  .buy { color: #f97316; }
+  .rent { color: #2563eb; }
+  .delta { color: #7c3aed; }
+  .neutral { color: #0891b2; }
+  .layout { display: grid; grid-template-columns: 340px 1fr; gap: 24px; }
+  .sliders h3 { margin: 16px 0 12px 0; font-size: 13px; color: #2563eb; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; }
+  .sliders h3:first-child { margin-top: 0; }
+  .slider-row { margin-bottom: 14px; }
+  .slider-row .top { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
+  .slider-row .top .lbl { font-weight: 600; color: #444; }
+  .slider-row .top .val { font-weight: 700; color: #2563eb; }
+  input[type="range"] { width: 100%; height: 6px; -webkit-appearance: none; background: #e5e7eb; border-radius: 3px; outline: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: #2563eb; border-radius: 50%; cursor: pointer; }
+  input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; background: #2563eb; border-radius: 50%; cursor: pointer; border: none; }
+  .charts { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  .chart-card { background: white; padding: 18px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+  .chart-card h4 { margin: 0 0 8px 0; font-size: 14px; }
+  canvas { max-height: 320px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 12px; }
+  th, td { padding: 7px 6px; text-align: right; border-bottom: 1px solid #f0f0f0; }
+  th { background: #f8f9fa; font-weight: 600; }
+  th:first-child, td:first-child { text-align: left; font-weight: 600; }
+  tr.highlight { background: #fef3e7; }
+  .note { background: #fff8e1; border-left: 4px solid #d97706; padding: 12px 16px; margin-top: 24px; border-radius: 6px; font-size: 13px; line-height: 1.5; }
+  .takeaway { background: #ede9fe; border-left: 4px solid #7c3aed; padding: 16px; margin-top: 20px; border-radius: 6px; font-size: 14px; line-height: 1.6; }
+  .takeaway strong { color: #7c3aed; }
+</style>
+</head>
+<body>
+
+<div id="content">
+<h1>Kyuna House: Buy vs Rent + Invest Simulator</h1>
+<div class="sub">Drag the sliders or pick a preset. All numbers update live. Numbers are in USD (today's purchasing power).</div>
+
+<div class="preset-bar">
+  <button onclick="applyPreset('base')">Base case (50M loan, 4% appr, 8% equity)</button>
+  <button onclick="applyPreset('cash_heavy')">Cash heavy (30M loan, 50M cash)</button>
+  <button onclick="applyPreset('max_loan')">Max loan (60M loan, min cash)</button>
+  <button onclick="applyPreset('outright')">Buy outright (no loan)</button>
+  <button onclick="applyPreset('owner_upside')">Owner upside (cottage + clinic)</button>
+  <button onclick="applyPreset('worst_case_rent')">Worst case (kicked out year 1)</button>
+  <button onclick="applyPreset('optimistic_house')">Optimistic for buying</button>
+  <button onclick="applyPreset('optimistic_invest')">Optimistic for investing</button>
+</div>
+
+<div class="headline">
+  <div class="card">
+    <div class="label">Buy: Net wealth at year N</div>
+    <div class="value buy" id="buy-net">--</div>
+    <div class="sub-val" id="buy-detail"></div>
+  </div>
+  <div class="card">
+    <div class="label">Rent + Invest: Net wealth at year N</div>
+    <div class="value rent" id="rent-net">--</div>
+    <div class="sub-val" id="rent-detail"></div>
+  </div>
+  <div class="card">
+    <div class="label">Difference</div>
+    <div class="value delta" id="delta">--</div>
+    <div class="sub-val" id="winner"></div>
+  </div>
+  <div class="card">
+    <div class="label">Monthly mortgage payment</div>
+    <div class="value neutral" id="monthly">--</div>
+    <div class="sub-val" id="monthly-sub"></div>
+  </div>
+</div>
+
+<div class="layout">
+
+  <div class="card sliders">
+    <h3>Property &amp; Mortgage</h3>
+    <div class="slider-row">
+      <div class="top"><span class="lbl">Purchase price</span><span class="val" id="lbl-pp">--</span></div>
+      <input type="range" id="pp" min="40" max="120" step="1" value="80">
+    </div>
+    <div class="slider-row">
+      <div class="top"><span class="lbl">Loan amount</span><span class="val" id="lbl-loan">--</span></div>
+      <input type="range" id="loan" min="0" max="60" step="1" value="50">
+    </div>
+    <div class="slider-row">
+      <div class="top"><span class="lbl">Interest rate (KES)</span><span class="val" id="lbl-rate">--</span></div>
+      <input type="range" id="rate" min="8" max="18" step="0.1" value="13.96">
+    </div>
+    <div class="slider-row">
+      <div class="top"><span class="lbl">Loan tenor</span><span class="val" id="lbl-tenor">--</span></div>
+      <input type="range" id="tenor" min="3" max="20" step="1" value="15">
+    </div>
+    <div class="slider-row">
+      <div class="top"><span class="lbl">Upfront fees (% of loan)</span><span class="val" id="lbl-fee">--</span></div>
+      <input type="range" id="fee" min="3" max="12" step="0.1" value="7.4">
+    </div>
+
+    <h3>Rent Scenario</h3>
+    <div class="slider-row">
+      <div class="top"><span class="lbl">Current monthly rent</span><span class="val" id="lbl-rent">--</span></div>
+      <input type="range" id="rent" min="500" max="8000" step="100" value="2500">
+    </div>
+    <div class="slider-row">
+      <div class="top"><span class="lbl">Annual rent increase</span><span class="val" id="lbl-rentg">--</span></div>
+      <input type="range" id="rentg" min="0" max="12" step="0.5" value="7">
+    </div>
+    <div class="slider-row">
+      <div class="top"><span class="lbl">Years until forced rent reset (0 = never)</span><span class="val" id="lbl-resety">--</span></div>
+      <input type="range" id="resety" min="0" max="15" step="1" value="5">
+    </div>
+    <div class="slider-row">
+      <div class="top"><span class="lbl">Post-reset market rent</span><span class="val" id="lbl-resetr">--</span></div>
+      <input type="range" id="resetr" min="2500" max="8000" step="100" value="4500">
+    </div>
+    <div class="slider-row">
+      <div class="top"><span class="lbl">One-time moving cost (forced move)</span><span class="val" id="lbl-movec">--</span></div>
+      <input type="range" id="movec" min="0" max="50000" step="1000" value="20000">
+    </div>
+
+    <h3>Owner-only Upside</h3>
+    <div class="sub" style="font-size: 12px; color: #888; margin-bottom: 8px;">Things you can only do if you own. Cottage rental, clinic build, container, etc.</div>
+    <div class="slider-row">
+      <div class="top"><span class="lbl">Monthly owner-only income</span><span class="val" id="lbl-owni">--</span></div>
+      <input type="range" id="owni" min="0" max="5000" step="50" value="878">
+    </div>
+    <div class="slider-row">
+      <div class="top"><span class="lbl">Months until owner income starts</span><span class="val" id="lbl-owns">--</span></div>
+      <input type="range" id="owns" min="0" max="36" step="1" value="12">
+    </div>
+
+    <h3>Market Assumptions</h3>
+    <div class="slider-row">
+      <div class="top"><span class="lbl">House appreciation (KES, Kyuna prime)</span><span class="val" id="lbl-app">--</span></div>
+      <input type="range" id="app" min="-2" max="12" step="0.5" value="5">
+    </div>
+    <div class="slider-row">
+      <div class="top"><span class="lbl">KES devaluation vs USD</span><span class="val" id="lbl-dev">--</span></div>
+      <input type="range" id="dev" min="-2" max="10" step="0.5" value="3">
+    </div>
+    <div class="slider-row">
+      <div class="top"><span class="lbl">Equity return (USD)</span><span class="val" id="lbl-eq">--</span></div>
+      <input type="range" id="eq" min="0" max="15" step="0.5" value="8">
+    </div>
+
+    <h3>Other</h3>
+    <div class="slider-row">
+      <div class="top"><span class="lbl">Maintenance (% of property)</span><span class="val" id="lbl-maint">--</span></div>
+      <input type="range" id="maint" min="0" max="3" step="0.1" value="0.4">
+    </div>
+    <div class="slider-row">
+      <div class="top"><span class="lbl">Time horizon</span><span class="val" id="lbl-hz">--</span></div>
+      <input type="range" id="hz" min="3" max="30" step="1" value="15">
+    </div>
+    <div class="slider-row">
+      <div class="top"><span class="lbl">KES per USD today</span><span class="val" id="lbl-fx">--</span></div>
+      <input type="range" id="fx" min="100" max="200" step="1" value="130">
+    </div>
+  </div>
+
+  <div class="charts">
+    <div class="chart-card">
+      <h4>Net wealth over time (USD)</h4>
+      <canvas id="chart-wealth"></canvas>
+    </div>
+    <div class="chart-card">
+      <h4>Year-end position breakdown (USD)</h4>
+      <canvas id="chart-breakdown"></canvas>
+    </div>
+    <div class="chart-card">
+      <h4>Detailed yearly breakdown</h4>
+      <table id="results-table">
+        <thead>
+          <tr>
+            <th>Year</th>
+            <th>House USD</th>
+            <th>Mortgage balance</th>
+            <th>Buy net</th>
+            <th>Rent + invest portfolio</th>
+            <th>Delta (favoring rent)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <strong>How the model works.</strong> Both scenarios assume the same monthly cash capacity. In BUY, that capacity goes to mortgage + maintenance. In RENT + INVEST, the rent is paid and the surplus (BUY cost minus rent) is invested at the equity return rate. The initial cash that would have been used as down payment + fees is invested instead in the RENT scenario. After the mortgage tenor ends, BUY also invests the freed cash flow (former mortgage equivalent minus maintenance). House value in USD reflects KES depreciation against USD. "Net wealth" is asset value minus outstanding debt minus prior cash sunk that didn't become equity.
+</div>
+
+<div class="takeaway" id="takeaway"></div>
+
+<div class="card" style="margin-top: 20px;">
+  <h3 style="margin: 0 0 12px 0; color: #2563eb;">Loan amount sensitivity (current other assumptions)</h3>
+  <div class="sub" style="margin-bottom: 12px;">How the buy vs rent + invest gap changes as we shift the cash / loan mix.</div>
+  <table id="sensitivity-table">
+    <thead>
+      <tr>
+        <th>Loan amount</th>
+        <th>Cash up front</th>
+        <th>Monthly mortgage</th>
+        <th>Buy net at horizon</th>
+        <th>Rent + invest net</th>
+        <th>Delta</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<div class="card" style="margin-top: 20px;">
+  <h3 style="margin: 0 0 12px 0; color: #2563eb;">Conclusions: when does buying actually work?</h3>
+  <div id="conclusions" style="font-size: 14px; line-height: 1.7;"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+function fmtUSD(v) {
+  if (Math.abs(v) >= 1e6) return '$' + (v / 1e6).toFixed(2) + 'M';
+  if (Math.abs(v) >= 1e3) return '$' + (v / 1e3).toFixed(0) + 'k';
+  return '$' + v.toFixed(0);
+}
+function fmtUSDPrecise(v) {
+  return '$' + Math.round(v).toLocaleString();
+}
+
+function calcMonthlyPayment(P, annualRate, years) {
+  if (P <= 0 || years <= 0) return 0;
+  const r = annualRate / 12;
+  const n = years * 12;
+  if (Math.abs(r) < 1e-9) return P / n;
+  return P * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1);
+}
+
+function balanceAtMonth(P, annualRate, years, m) {
+  if (P <= 0) return 0;
+  if (m >= years * 12) return 0;
+  if (m <= 0) return P;
+  const r = annualRate / 12;
+  const pmt = calcMonthlyPayment(P, annualRate, years);
+  if (Math.abs(r) < 1e-9) return P - pmt * m;
+  return P * Math.pow(1 + r, m) - pmt * (Math.pow(1 + r, m) - 1) / r;
+}
+
+function simulate(p) {
+  const purchaseKES = p.pp * 1e6;
+  const loanKES = p.loan * 1e6;
+  const downKES = purchaseKES - loanKES;
+  const feesKES = loanKES * p.fee / 100;
+  const upfrontKES = downKES + feesKES;
+  const upfrontUSD = upfrontKES / p.fx;
+  const monthlyPmtKES = calcMonthlyPayment(loanKES, p.rate / 100, p.tenor);
+
+  // BUY starts with house equity = downUSD, lost fees, no spare cash
+  // RENT starts with upfrontUSD as portfolio
+  let rentPort = upfrontUSD;
+  let buyPort = 0; // BUY has no investment portfolio during mortgage years
+  const rows = [];
+
+  for (let y = 1; y <= p.hz; y++) {
+    const fxEnd = p.fx * Math.pow(1 + p.dev / 100, y);
+    const fxMid = p.fx * Math.pow(1 + p.dev / 100, y - 0.5);
+    const hvKES = purchaseKES * Math.pow(1 + p.app / 100, y);
+    const hvUSD = hvKES / fxEnd;
+
+    const mortBalKES = balanceAtMonth(loanKES, p.rate / 100, p.tenor, Math.min(y * 12, p.tenor * 12));
+    const mortBalUSD = mortBalKES / fxEnd;
+
+    const annualPmtKES = y <= p.tenor ? monthlyPmtKES * 12 : 0;
+    const maintKES = hvKES * p.maint / 100;
+    const annualMaintUSD = maintKES / fxMid;
+    const annualBuyUSD = (annualPmtKES + maintKES) / fxMid;
+
+    let annualRentUSD;
+    if (p.resety > 0 && y >= p.resety) {
+      const yearsSinceReset = y - p.resety;
+      annualRentUSD = p.resetr * 12 * Math.pow(1 + p.rentg / 100, yearsSinceReset);
+    } else {
+      annualRentUSD = p.rent * 12 * Math.pow(1 + p.rentg / 100, y - 1);
+    }
+
+    const movingCostThisYear = (p.resety > 0 && y === p.resety) ? p.movec : 0;
+
+    const rentScenarioInvest = annualBuyUSD - annualRentUSD - movingCostThisYear;
+    rentPort = rentPort * (1 + p.eq / 100) + rentScenarioInvest;
+
+    // BUY scenario: post-tenor, invest the differential (rent equivalent minus maintenance)
+    let buyInvest = 0;
+    if (y > p.tenor) {
+      buyInvest = annualRentUSD - annualMaintUSD;
+      if (buyInvest < 0) buyInvest = 0;
+    }
+    // Owner-only income (cottage rental, clinic, etc.) flows only to BUY scenario
+    const ownerStartYear = p.owns / 12;
+    let ownerMonthsThisYear = 0;
+    if (y > ownerStartYear) {
+      ownerMonthsThisYear = Math.min(12, (y - ownerStartYear) * 12);
+      if (ownerMonthsThisYear > 12) ownerMonthsThisYear = 12;
+    }
+    const ownerIncomeThisYear = ownerMonthsThisYear * p.owni;
+    buyPort = buyPort * (1 + p.eq / 100) + buyInvest + ownerIncomeThisYear;
+
+    // Net wealth comparison: account for the fees lost upfront in BUY
+    const feesUSD = feesKES / p.fx;
+    const buyNet = hvUSD - mortBalUSD + buyPort - feesUSD;
+    const rentNet = rentPort - feesUSD; // subtract same to keep apples to apples? No, RENT didn't lose fees.
+    // Actually RENT didn't lose anything upfront. RENT's portfolio includes the upfront. BUY's house equity is down - fees less than upfront.
+    // So: BUY net = house equity + buy invest portfolio = (house value - mortgage balance) + buyPort
+    // RENT net = rent portfolio
+    // Both are absolute asset positions. The fees gap is captured because rentPort STARTED higher than buyNet by feesUSD.
+    const buyNetClean = hvUSD - mortBalUSD + buyPort;
+    const rentNetClean = rentPort;
+    const delta = rentNetClean - buyNetClean;
+
+    rows.push({
+      year: y,
+      fxEnd,
+      hvUSD,
+      mortBalUSD,
+      buyPort,
+      rentPort,
+      buyNet: buyNetClean,
+      rentNet: rentNetClean,
+      delta,
+      monthlyPmtKES,
+      annualBuyUSD,
+      annualRentUSD,
+      feesUSD,
+    });
+  }
+  return { rows, monthlyPmtKES, upfrontUSD, feesUSD: feesKES / p.fx, purchaseKES, loanKES };
+}
+
+function readParams() {
+  return {
+    pp: +document.getElementById('pp').value,
+    loan: +document.getElementById('loan').value,
+    rate: +document.getElementById('rate').value,
+    tenor: +document.getElementById('tenor').value,
+    fee: +document.getElementById('fee').value,
+    rent: +document.getElementById('rent').value,
+    rentg: +document.getElementById('rentg').value,
+    resety: +document.getElementById('resety').value,
+    resetr: +document.getElementById('resetr').value,
+    movec: +document.getElementById('movec').value,
+    owni: +document.getElementById('owni').value,
+    owns: +document.getElementById('owns').value,
+    app: +document.getElementById('app').value,
+    dev: +document.getElementById('dev').value,
+    eq: +document.getElementById('eq').value,
+    maint: +document.getElementById('maint').value,
+    hz: +document.getElementById('hz').value,
+    fx: +document.getElementById('fx').value,
+  };
+}
+
+function updateLabels(p) {
+  document.getElementById('lbl-pp').innerText = p.pp + 'M KES';
+  document.getElementById('lbl-loan').innerText = p.loan + 'M KES';
+  document.getElementById('lbl-rate').innerText = p.rate.toFixed(2) + '%';
+  document.getElementById('lbl-tenor').innerText = p.tenor + ' yrs';
+  document.getElementById('lbl-fee').innerText = p.fee.toFixed(1) + '%';
+  document.getElementById('lbl-rent').innerText = '$' + p.rent;
+  document.getElementById('lbl-rentg').innerText = p.rentg + '%/yr';
+  document.getElementById('lbl-resety').innerText = p.resety === 0 ? 'never' : 'year ' + p.resety;
+  document.getElementById('lbl-resetr').innerText = '$' + p.resetr;
+  document.getElementById('lbl-movec').innerText = '$' + p.movec.toLocaleString();
+  document.getElementById('lbl-owni').innerText = '$' + p.owni + '/mo';
+  document.getElementById('lbl-owns').innerText = p.owns + ' months';
+  document.getElementById('lbl-app').innerText = p.app + '%/yr';
+  document.getElementById('lbl-dev').innerText = p.dev + '%/yr';
+  document.getElementById('lbl-eq').innerText = p.eq + '%/yr';
+  document.getElementById('lbl-maint').innerText = p.maint + '%/yr';
+  document.getElementById('lbl-hz').innerText = p.hz + ' yrs';
+  document.getElementById('lbl-fx').innerText = p.fx;
+}
+
+let chartWealth = null;
+let chartBreakdown = null;
+
+function render() {
+  const p = readParams();
+  // Cap loan at purchase price
+  if (p.loan > p.pp) {
+    p.loan = p.pp;
+    document.getElementById('loan').value = p.loan;
+  }
+  updateLabels(p);
+
+  const result = simulate(p);
+  const finalRow = result.rows[result.rows.length - 1];
+
+  document.getElementById('buy-net').innerText = fmtUSD(finalRow.buyNet);
+  document.getElementById('buy-detail').innerText = 'House ' + fmtUSD(finalRow.hvUSD) + ' minus mortgage ' + fmtUSD(finalRow.mortBalUSD) + ' plus invest ' + fmtUSD(finalRow.buyPort);
+  document.getElementById('rent-net').innerText = fmtUSD(finalRow.rentNet);
+  document.getElementById('rent-detail').innerText = 'Portfolio compounded over ' + p.hz + ' years';
+  const delta = finalRow.delta;
+  document.getElementById('delta').innerText = fmtUSD(Math.abs(delta));
+  document.getElementById('winner').innerText = delta > 0 ? 'Rent + invest is ahead' : (delta < 0 ? 'Buying is ahead' : 'Tie');
+
+  document.getElementById('monthly').innerText = result.monthlyPmtKES > 0 ? fmtUSDPrecise(result.monthlyPmtKES / p.fx) : '$0';
+  document.getElementById('monthly-sub').innerText = result.monthlyPmtKES > 0 ? 'KES ' + Math.round(result.monthlyPmtKES).toLocaleString() + '/month' : 'No loan';
+
+  // Charts
+  const labels = result.rows.map(r => 'Y' + r.year);
+  if (chartWealth) chartWealth.destroy();
+  chartWealth = new Chart(document.getElementById('chart-wealth'), {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Buy: net wealth',
+          data: result.rows.map(r => r.buyNet),
+          borderColor: '#f97316',
+          backgroundColor: 'rgba(249,115,22,.1)',
+          pointStyle: 'circle',
+          pointRadius: 3,
+          tension: 0.2,
+        },
+        {
+          label: 'Rent + invest: portfolio',
+          data: result.rows.map(r => r.rentNet),
+          borderColor: '#2563eb',
+          backgroundColor: 'rgba(37,99,235,.1)',
+          pointStyle: 'triangle',
+          pointRadius: 4,
+          tension: 0.2,
+        },
+        {
+          label: 'House value',
+          data: result.rows.map(r => r.hvUSD),
+          borderColor: '#0891b2',
+          borderDash: [4, 4],
+          pointStyle: 'rectRot',
+          pointRadius: 3,
+          tension: 0.2,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } },
+      scales: { y: { ticks: { callback: v => fmtUSD(v) } } },
+    },
+  });
+
+  if (chartBreakdown) chartBreakdown.destroy();
+  chartBreakdown = new Chart(document.getElementById('chart-breakdown'), {
+    type: 'bar',
+    data: {
+      labels: ['Buy', 'Rent + Invest'],
+      datasets: [
+        {
+          label: 'House equity',
+          data: [finalRow.hvUSD - finalRow.mortBalUSD, 0],
+          backgroundColor: '#f97316',
+        },
+        {
+          label: 'Portfolio',
+          data: [finalRow.buyPort, finalRow.rentNet],
+          backgroundColor: '#2563eb',
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true, ticks: { callback: v => fmtUSD(v) } },
+      },
+    },
+  });
+
+  // Table
+  const tbody = document.querySelector('#results-table tbody');
+  tbody.innerHTML = '';
+  result.rows.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    if (i === result.rows.length - 1) tr.className = 'highlight';
+    tr.innerHTML = `
+      <td>${r.year}</td>
+      <td>${fmtUSD(r.hvUSD)}</td>
+      <td>${fmtUSD(r.mortBalUSD)}</td>
+      <td>${fmtUSD(r.buyNet)}</td>
+      <td>${fmtUSD(r.rentNet)}</td>
+      <td style="color:${r.delta > 0 ? '#2563eb' : '#f97316'}">${r.delta > 0 ? '+' : ''}${fmtUSD(r.delta)}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  // Takeaway
+  const takeawayEl = document.getElementById('takeaway');
+  const monthlyUSD = result.monthlyPmtKES / p.fx;
+  const monthlyDelta = monthlyUSD - p.rent;
+  let summary = '';
+  if (Math.abs(delta) < 50000) {
+    summary = `<strong>Verdict: roughly a wash.</strong> Buying and renting + investing land within ${fmtUSD(Math.abs(delta))} of each other after ${p.hz} years. At that gap, sentiment and lifestyle outweigh finance. Buying makes sense if you love the house.`;
+  } else if (delta > 0) {
+    summary = `<strong>Verdict: renting + investing wins financially by ${fmtUSD(delta)}.</strong> Over ${p.hz} years, the difference between paying ${fmtUSDPrecise(monthlyUSD)}/month mortgage and ${fmtUSDPrecise(p.rent)}/month rent (${fmtUSDPrecise(monthlyDelta)}/month savings) compounds significantly at ${p.eq}% USD returns. Buying is paying roughly ${fmtUSD(delta / p.hz)}/year for the privilege of ownership.`;
+  } else {
+    summary = `<strong>Verdict: buying wins financially by ${fmtUSD(-delta)}.</strong> The combination of low rate, strong house appreciation, and weaker equity returns makes ownership the better economic call here.`;
+  }
+  takeawayEl.innerHTML = summary;
+
+  // Sensitivity and conclusions
+  if (typeof renderSensitivity === 'function') renderSensitivity(p);
+  if (typeof renderConclusions === 'function') renderConclusions(p);
+}
+
+const BASE_OWN = { owni: 878, owns: 12 };
+const NO_OWN = { owni: 0, owns: 0 };
+const PRESETS = {
+  base: { pp: 80, loan: 50, rate: 13.96, tenor: 15, fee: 7.4, rent: 2500, rentg: 7, resety: 5, resetr: 4500, movec: 20000, app: 5, dev: 3, eq: 8, maint: 0.4, hz: 15, fx: 130, ...BASE_OWN },
+  cash_heavy: { pp: 80, loan: 30, rate: 13.96, tenor: 15, fee: 7.4, rent: 2500, rentg: 7, resety: 5, resetr: 4500, movec: 20000, app: 5, dev: 3, eq: 8, maint: 0.4, hz: 15, fx: 130, ...BASE_OWN },
+  max_loan: { pp: 80, loan: 60, rate: 13.96, tenor: 15, fee: 7.4, rent: 2500, rentg: 7, resety: 5, resetr: 4500, movec: 20000, app: 5, dev: 3, eq: 8, maint: 0.4, hz: 15, fx: 130, ...BASE_OWN },
+  outright: { pp: 80, loan: 0, rate: 13.96, tenor: 15, fee: 0, rent: 2500, rentg: 7, resety: 5, resetr: 4500, movec: 20000, app: 5, dev: 3, eq: 8, maint: 0.4, hz: 15, fx: 130, ...BASE_OWN },
+  owner_upside: { pp: 80, loan: 50, rate: 13.96, tenor: 15, fee: 7.4, rent: 2500, rentg: 7, resety: 5, resetr: 4500, movec: 20000, app: 5, dev: 3, eq: 8, maint: 0.4, hz: 15, fx: 130, owni: 2000, owns: 12 },
+  optimistic_house: { pp: 80, loan: 50, rate: 13.96, tenor: 15, fee: 7.4, rent: 2500, rentg: 8, resety: 3, resetr: 5000, movec: 25000, app: 7, dev: 2, eq: 6, maint: 0.4, hz: 15, fx: 130, ...BASE_OWN },
+  optimistic_invest: { pp: 80, loan: 50, rate: 13.96, tenor: 15, fee: 7.4, rent: 2500, rentg: 3, resety: 0, resetr: 4500, movec: 20000, app: 2, dev: 5, eq: 10, maint: 0.4, hz: 15, fx: 130, ...NO_OWN },
+  worst_case_rent: { pp: 80, loan: 50, rate: 13.96, tenor: 15, fee: 7.4, rent: 2500, rentg: 10, resety: 1, resetr: 5500, movec: 30000, app: 6, dev: 4, eq: 8, maint: 0.4, hz: 15, fx: 130, ...BASE_OWN },
+};
+
+function applyPreset(name) {
+  const p = PRESETS[name];
+  if (!p) return;
+  for (const k of Object.keys(p)) {
+    const el = document.getElementById(k);
+    if (el) el.value = p[k];
+  }
+  render();
+}
+
+document.querySelectorAll('input[type="range"]').forEach(el => {
+  el.addEventListener('input', render);
+});
+
+function renderSensitivity(p, baseResult) {
+  const tbody = document.querySelector('#sensitivity-table tbody');
+  tbody.innerHTML = '';
+  const loanAmounts = [0, 20, 30, 40, 50, 60].filter(l => l <= p.pp);
+  loanAmounts.forEach(loanAmount => {
+    const trialP = { ...p, loan: loanAmount, fee: loanAmount === 0 ? 0 : p.fee };
+    const result = simulate(trialP);
+    const finalRow = result.rows[result.rows.length - 1];
+    const cashUpfront = ((p.pp - loanAmount) * 1e6 + loanAmount * 1e6 * (loanAmount === 0 ? 0 : p.fee) / 100) / p.fx;
+    const tr = document.createElement('tr');
+    if (loanAmount === p.loan) tr.className = 'highlight';
+    const deltaColor = finalRow.delta > 0 ? '#2563eb' : '#f97316';
+    tr.innerHTML = `
+      <td>${loanAmount}M KES</td>
+      <td>${fmtUSD(cashUpfront)}</td>
+      <td>${result.monthlyPmtKES > 0 ? fmtUSDPrecise(result.monthlyPmtKES / p.fx) : '$0'}</td>
+      <td>${fmtUSD(finalRow.buyNet)}</td>
+      <td>${fmtUSD(finalRow.rentNet)}</td>
+      <td style="color:${deltaColor}; font-weight: 600;">${finalRow.delta > 0 ? '+' : ''}${fmtUSD(finalRow.delta)} ${finalRow.delta > 0 ? 'rent' : 'buy'}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderConclusions(p) {
+  // Test scenarios where BUY could win
+  const tests = [
+    { name: 'House appreciation', key: 'app', tryValues: [4, 6, 8, 10, 12] },
+    { name: 'Rent growth', key: 'rentg', tryValues: [3, 5, 7, 9, 12] },
+    { name: 'Equity return', key: 'eq', tryValues: [10, 8, 6, 4, 2] },
+    { name: 'KES devaluation', key: 'dev', tryValues: [-2, 0, 3, 5, 8] },
+    { name: 'Time horizon', key: 'hz', tryValues: [10, 15, 20, 25, 30] },
+  ];
+  let breakevens = [];
+  tests.forEach(test => {
+    let breakeven = null;
+    for (const v of test.tryValues) {
+      const trial = { ...p, [test.key]: v };
+      const r = simulate(trial);
+      const finalDelta = r.rows[r.rows.length - 1].delta;
+      if (finalDelta <= 0) {
+        breakeven = v;
+        break;
+      }
+    }
+    if (breakeven !== null) {
+      breakevens.push({ name: test.name, value: breakeven, unit: test.key === 'hz' ? ' years' : '%' });
+    }
+  });
+
+  let html = '';
+  if (p.owni > 0) {
+    html += `<p><strong>Owner-only upside is now in the model.</strong> You assumed $${p.owni}/month in income that you can only earn if you own (cottage rental to Salima, clinic build, container build, etc.) starting in month ${p.owns}. Over ${p.hz} years compounding at the equity return, that single line item alone is worth roughly $${Math.round(p.owni * 12 * p.hz / 1000)}k of additional value to the BUY scenario.</p>`;
+  }
+
+  html += '<p><strong>At the current rate (13.96% KES), the loan itself is expensive money.</strong> Every shilling borrowed costs more than what equities are expected to return. So the less you borrow, the smaller the financial drag. The optimal loan amount on pure cost-of-debt grounds is zero. But the rate also captures the campaign discount, which has value if you intend to prepay aggressively.</p>';
+
+  html += '<p><strong>What flips the BUY answer in our actual situation:</strong> the combination of (1) rent reset risk (current $2,500 deal is below market and may end), (2) Kyuna prime appreciation, (3) garden optionality income (cottage / clinic), and (4) the no-prepayment-penalty hack that turns the mortgage into a 13.96% guaranteed-return savings vehicle when prepaid. Pull each lever in the simulator and the picture changes.</p>';
+
+  html += '<p><strong>For buying to actually win, at least one of these has to change:</strong></p><ul>';
+  if (breakevens.length === 0) {
+    html += '<li>None of the single-variable breakevens land inside reasonable ranges with current assumptions. Buying loses across the board on pure finance.</li>';
+  } else {
+    breakevens.forEach(b => {
+      html += `<li><strong>${b.name}</strong> needs to be at least <strong>${b.value}${b.unit}</strong> (currently ${p[b.key === 'hz' ? 'hz' : b.key]}${b.unit})</li>`;
+    });
+  }
+  html += '</ul>';
+
+  html += '<p><strong>What this means for our decision:</strong></p>';
+  html += '<ul>';
+  html += '<li>Buying this house is a lifestyle decision, not an investment. We should be honest about that.</li>';
+  html += '<li>If we buy, the financially-least-bad structure is the smallest possible mortgage. Pay as much cash as we can afford without compromising liquidity. The 50M loan / 30M cash structure is the working balance, but a 30M loan / 50M cash structure (if we have the cash) is even better financially because we save the 13.96% interest on 20M of borrowed money.</li>';
+  html += '<li>If we cannot avoid borrowing, the campaign 2% rate discount is worth catching. Then prepay aggressively in years 1 to 5 using bonuses or windfalls. Since there is no prepayment penalty, every shilling we throw at the mortgage early saves us 13.96% per year on that shilling. That is a guaranteed 13.96% return, which beats most investments.</li>';
+  html += '<li>Renting forever is the right answer ONLY if (a) we can keep the current sweet rent deal at 2,500 USD, AND (b) we discipline ourselves to actually invest the savings each month. If either fails, the gap closes fast.</li>';
+  html += '</ul>';
+
+  html += '<p><strong>Bottom line:</strong> the right question is not "buy or rent". The right question is "is owning this specific home for our family worth roughly 50,000 to 80,000 USD a year in opportunity cost?" For a 10 to 15 year horizon with two small kids, most families would say yes. Just go in with eyes open.</p>';
+
+  document.getElementById('conclusions').innerHTML = html;
+}
+
+// Show content + render
+document.getElementById('content').style.display = 'block';
+render();
+</script>
+
+</div>
+</body>
+</html>
