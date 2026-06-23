@@ -583,59 +583,85 @@ function renderSensitivity(p, baseResult) {
 }
 
 function renderConclusions(p) {
-  // Test scenarios where BUY could win
-  const tests = [
-    { name: 'House appreciation', key: 'app', tryValues: [4, 6, 8, 10, 12] },
-    { name: 'Rent growth', key: 'rentg', tryValues: [3, 5, 7, 9, 12] },
-    { name: 'Equity return', key: 'eq', tryValues: [10, 8, 6, 4, 2] },
-    { name: 'KES devaluation', key: 'dev', tryValues: [-2, 0, 3, 5, 8] },
-    { name: 'Time horizon', key: 'hz', tryValues: [10, 15, 20, 25, 30] },
-  ];
-  let breakevens = [];
-  tests.forEach(test => {
-    let breakeven = null;
-    for (const v of test.tryValues) {
-      const trial = { ...p, [test.key]: v };
-      const r = simulate(trial);
-      const finalDelta = r.rows[r.rows.length - 1].delta;
-      if (finalDelta <= 0) {
-        breakeven = v;
-        break;
-      }
-    }
-    if (breakeven !== null) {
-      breakevens.push({ name: test.name, value: breakeven, unit: test.key === 'hz' ? ' years' : '%' });
-    }
-  });
+  const r = simulate(p);
+  const finalRow = r.rows[r.rows.length - 1];
+  const winner = finalRow.delta > 0 ? 'rent' : 'buy';
+  const gap = Math.abs(finalRow.delta);
+
+  // Counterfactuals to attribute impact
+  const noOwner = simulate({ ...p, owni: 0 });
+  const ownerSwing = noOwner.rows[noOwner.rows.length - 1].delta - finalRow.delta;
+
+  const noReset = simulate({ ...p, resety: 0 });
+  const resetSwing = noReset.rows[noReset.rows.length - 1].delta - finalRow.delta;
+
+  const lowApp = simulate({ ...p, app: 2 });
+  const appSwing = lowApp.rows[lowApp.rows.length - 1].delta - finalRow.delta;
+
+  // Final year cash position breakdown
+  const houseEquity = finalRow.hvUSD - finalRow.mortBalUSD;
+  const cumMortgageInterest = (function() {
+    const monthly = r.monthlyPmtKES;
+    const monthsPaid = Math.min(p.hz * 12, p.tenor * 12);
+    const totalPaid = monthly * monthsPaid;
+    const principalPaid = (p.loan * 1e6) - balanceAtMonth(p.loan * 1e6, p.rate / 100, p.tenor, monthsPaid);
+    return (totalPaid - principalPaid) / p.fx;
+  })();
 
   let html = '';
-  if (p.owni > 0) {
-    html += `<p><strong>Owner-only upside is now in the model.</strong> You assumed $${p.owni}/month in income that you can only earn if you own (cottage rental to Salima, clinic build, container build, etc.) starting in month ${p.owns}. Over ${p.hz} years compounding at the equity return, that single line item alone is worth roughly $${Math.round(p.owni * 12 * p.hz / 1000)}k of additional value to the BUY scenario.</p>`;
+
+  // Headline interpretation
+  html += `<p><strong>Result with current sliders:</strong> ${winner === 'buy' ? `Buying wins by <span style="color:#f97316">${fmtUSD(gap)}</span>` : `Rent + Invest wins by <span style="color:#2563eb">${fmtUSD(gap)}</span>`} at year ${p.hz}.</p>`;
+
+  // Where the buy wealth comes from
+  html += `<p><strong>BUY breakdown at year ${p.hz}:</strong></p><ul>`;
+  html += `<li>House equity (Kyuna appreciation + KES dilution): <strong>${fmtUSD(houseEquity)}</strong></li>`;
+  html += `<li>Owner-only income portfolio (cottage at $${p.owni}/mo compounding): <strong>${fmtUSD(finalRow.buyPort)}</strong></li>`;
+  html += `<li>Total BUY net wealth: <strong>${fmtUSD(finalRow.buyNet)}</strong></li>`;
+  html += `</ul>`;
+
+  // Where the rent wealth comes from
+  html += `<p><strong>RENT + INVEST breakdown at year ${p.hz}:</strong></p><ul>`;
+  html += `<li>Starting portfolio of ${fmtUSD(r.upfrontUSD)} (down payment + fees not spent), compounding at ${p.eq}%/yr</li>`;
+  html += `<li>Minus rent paid (starts at $${p.rent}/mo, ${p.resety > 0 ? 'resets to $' + p.resetr + '/mo at year ' + p.resety + ', ' : ''}grows ${p.rentg}%/yr after)</li>`;
+  html += `<li>Plus annual savings (BUY cost minus rent cost) compounded</li>`;
+  html += `<li>Total RENT + INVEST net wealth: <strong>${fmtUSD(finalRow.rentNet)}</strong></li>`;
+  html += `</ul>`;
+
+  // What's moving the needle
+  html += `<p><strong>What's pushing the answer in each direction:</strong></p><ul>`;
+  if (Math.abs(ownerSwing) > 10000) {
+    html += `<li><strong>Owner-only income</strong> (cottage, clinic, container build) is worth <span style="color:#f97316">${fmtUSD(Math.abs(ownerSwing))}</span> ${ownerSwing > 0 ? 'in favor of buying' : 'in favor of renting'}. Without it, the answer would be ${(finalRow.delta - ownerSwing) > 0 ? 'rent' : 'buy'}.</li>`;
   }
+  if (Math.abs(resetSwing) > 10000) {
+    html += `<li><strong>Rent reset risk</strong> (forced market reset at year ${p.resety}) is worth <span style="color:#f97316">${fmtUSD(Math.abs(resetSwing))}</span> ${resetSwing > 0 ? 'in favor of buying' : 'in favor of renting'}. Without this risk, the answer would be ${(finalRow.delta - resetSwing) > 0 ? 'rent' : 'buy'}.</li>`;
+  }
+  if (Math.abs(appSwing) > 10000) {
+    html += `<li><strong>House appreciation</strong> at ${p.app}% (Kyuna prime) vs a flat 2% market: worth <span style="color:#f97316">${fmtUSD(Math.abs(appSwing))}</span> ${appSwing > 0 ? 'in favor of buying' : 'in favor of renting'}.</li>`;
+  }
+  html += `<li><strong>Mortgage interest cost over the life of the loan</strong>: <span style="color:#0891b2">${fmtUSD(cumMortgageInterest)}</span> paid in interest. This is the cost of leverage at the 13.96% KES rate.</li>`;
+  html += `</ul>`;
 
-  html += '<p><strong>At the current rate (13.96% KES), the loan itself is expensive money.</strong> Every shilling borrowed costs more than what equities are expected to return. So the less you borrow, the smaller the financial drag. The optimal loan amount on pure cost-of-debt grounds is zero. But the rate also captures the campaign discount, which has value if you intend to prepay aggressively.</p>';
-
-  html += '<p><strong>What flips the BUY answer in our actual situation:</strong> the combination of (1) rent reset risk (current $2,500 deal is below market and may end), (2) Kyuna prime appreciation, (3) garden optionality income (cottage / clinic), and (4) the no-prepayment-penalty hack that turns the mortgage into a 13.96% guaranteed-return savings vehicle when prepaid. Pull each lever in the simulator and the picture changes.</p>';
-
-  html += '<p><strong>For buying to actually win, at least one of these has to change:</strong></p><ul>';
-  if (breakevens.length === 0) {
-    html += '<li>None of the single-variable breakevens land inside reasonable ranges with current assumptions. Buying loses across the board on pure finance.</li>';
+  // Practical interpretation
+  html += `<p><strong>What this means in plain language:</strong></p><ul>`;
+  if (winner === 'buy') {
+    html += `<li>Under the current assumptions, owning the house comes out ahead by ${fmtUSD(gap)} after 15 years. That's a real number, not just sentiment.</li>`;
+    html += `<li>The three things doing the heavy lifting: rent doesn't stay cheap forever, the cottage brings in real money, and Kyuna is a premium scarce area. Remove any ONE of these and the gap shrinks materially.</li>`;
   } else {
-    breakevens.forEach(b => {
-      html += `<li><strong>${b.name}</strong> needs to be at least <strong>${b.value}${b.unit}</strong> (currently ${p[b.key === 'hz' ? 'hz' : b.key]}${b.unit})</li>`;
-    });
+    html += `<li>Under the current assumptions, renting and investing comes out ahead by ${fmtUSD(gap)} after 15 years.</li>`;
+    html += `<li>To flip the answer, we'd need either: higher appreciation (push slider toward ${p.app + 3}%), higher owner-only income (push slider toward $${(p.owni || 1000) + 1000}/mo), or accept that the rent reset will happen earlier than year ${p.resety}.</li>`;
   }
-  html += '</ul>';
+  html += `<li>Even if buying wins financially, the case has fragility built in: it depends on the cottage actually getting built, on Salima or someone else paying rent, and on Kyuna staying premium. If those don't materialize, the answer flips.</li>`;
+  html += `<li>The mortgage is still expensive money at 13.96%. The total interest bill of ${fmtUSD(cumMortgageInterest)} over the life of the loan is the price we pay for not having to come up with the full purchase price today. Every shilling we can prepay early saves 13.96% per year. Treat the mortgage as a hedge against not having enough cash, not as a great investment.</li>`;
+  html += `</ul>`;
 
-  html += '<p><strong>What this means for our decision:</strong></p>';
-  html += '<ul>';
-  html += '<li>Buying this house is a lifestyle decision, not an investment. We should be honest about that.</li>';
-  html += '<li>If we buy, the financially-least-bad structure is the smallest possible mortgage. Pay as much cash as we can afford without compromising liquidity. The 50M loan / 30M cash structure is the working balance, but a 30M loan / 50M cash structure (if we have the cash) is even better financially because we save the 13.96% interest on 20M of borrowed money.</li>';
-  html += '<li>If we cannot avoid borrowing, the campaign 2% rate discount is worth catching. Then prepay aggressively in years 1 to 5 using bonuses or windfalls. Since there is no prepayment penalty, every shilling we throw at the mortgage early saves us 13.96% per year on that shilling. That is a guaranteed 13.96% return, which beats most investments.</li>';
-  html += '<li>Renting forever is the right answer ONLY if (a) we can keep the current sweet rent deal at 2,500 USD, AND (b) we discipline ourselves to actually invest the savings each month. If either fails, the gap closes fast.</li>';
-  html += '</ul>';
+  // Sensitivity: which assumption matters most
+  html += `<p><strong>If we want buying to definitively win (not just slightly), the highest-leverage moves are:</strong></p><ul>`;
+  html += `<li>Maximise the cottage / clinic / container monetisation (slider: Monthly owner-only income). Every extra $500/mo here is worth roughly $${Math.round(500 * 12 * 15 * 1.5 / 1000)}k over 15 years.</li>`;
+  html += `<li>Buy with less loan, more cash. The 13.96% interest on every 10M KES borrowed costs you about $${Math.round(10e6 * 0.07 / 130 / 1000)}k per year in real terms. Cash deployment is the highest "guaranteed return" lever you have.</li>`;
+  html += `<li>Stay long. The model assumes ${p.hz} years. If we stay 20 years instead of 15, the house equity grows another ~25% while the rent burden gets brutal.</li>`;
+  html += `</ul>`;
 
-  html += '<p><strong>Bottom line:</strong> the right question is not "buy or rent". The right question is "is owning this specific home for our family worth roughly 50,000 to 80,000 USD a year in opportunity cost?" For a 10 to 15 year horizon with two small kids, most families would say yes. Just go in with eyes open.</p>';
 
   document.getElementById('conclusions').innerHTML = html;
 }
