@@ -117,6 +117,10 @@
       <div class="top"><span class="lbl">Upfront fees (% of loan)</span><span class="val" id="lbl-fee">--</span></div>
       <input type="range" id="fee" min="3" max="12" step="0.1" value="7.4">
     </div>
+    <div class="slider-row">
+      <div class="top"><span class="lbl">Title deed digitization (one-time, KES)</span><span class="val" id="lbl-digit">--</span></div>
+      <input type="range" id="digit" min="0" max="500000" step="10000" value="150000">
+    </div>
 
     <h3>Rent Scenario</h3>
     <div class="slider-row">
@@ -271,7 +275,8 @@ function simulate(p) {
   const loanKES = p.loan * 1e6;
   const downKES = purchaseKES - loanKES;
   const feesKES = loanKES * p.fee / 100;
-  const upfrontKES = downKES + feesKES;
+  const digitKES = p.digit;
+  const upfrontKES = downKES + feesKES + digitKES;
   const upfrontUSD = upfrontKES / p.fx;
   const monthlyPmtKES = calcMonthlyPayment(loanKES, p.rate / 100, p.tenor);
 
@@ -362,6 +367,7 @@ function readParams() {
     rate: +document.getElementById('rate').value,
     tenor: +document.getElementById('tenor').value,
     fee: +document.getElementById('fee').value,
+    digit: +document.getElementById('digit').value,
     rent: +document.getElementById('rent').value,
     rentg: +document.getElementById('rentg').value,
     resety: +document.getElementById('resety').value,
@@ -384,6 +390,7 @@ function updateLabels(p) {
   document.getElementById('lbl-rate').innerText = p.rate.toFixed(2) + '%';
   document.getElementById('lbl-tenor').innerText = p.tenor + ' yrs';
   document.getElementById('lbl-fee').innerText = p.fee.toFixed(1) + '%';
+  document.getElementById('lbl-digit').innerText = 'KES ' + p.digit.toLocaleString();
   document.getElementById('lbl-rent').innerText = '$' + p.rent;
   document.getElementById('lbl-rentg').innerText = p.rentg + '%/yr';
   document.getElementById('lbl-resety').innerText = p.resety === 0 ? 'never' : 'year ' + p.resety;
@@ -535,14 +542,14 @@ function render() {
 const BASE_OWN = { owni: 878, owns: 12 };
 const NO_OWN = { owni: 0, owns: 0 };
 const PRESETS = {
-  base: { pp: 80, loan: 50, rate: 13.96, tenor: 15, fee: 7.4, rent: 2500, rentg: 7, resety: 5, resetr: 4500, movec: 20000, app: 5, dev: 3, eq: 8, maint: 0.4, hz: 15, fx: 130, ...BASE_OWN },
-  cash_heavy: { pp: 80, loan: 30, rate: 13.96, tenor: 15, fee: 7.4, rent: 2500, rentg: 7, resety: 5, resetr: 4500, movec: 20000, app: 5, dev: 3, eq: 8, maint: 0.4, hz: 15, fx: 130, ...BASE_OWN },
-  max_loan: { pp: 80, loan: 60, rate: 13.96, tenor: 15, fee: 7.4, rent: 2500, rentg: 7, resety: 5, resetr: 4500, movec: 20000, app: 5, dev: 3, eq: 8, maint: 0.4, hz: 15, fx: 130, ...BASE_OWN },
-  outright: { pp: 80, loan: 0, rate: 13.96, tenor: 15, fee: 0, rent: 2500, rentg: 7, resety: 5, resetr: 4500, movec: 20000, app: 5, dev: 3, eq: 8, maint: 0.4, hz: 15, fx: 130, ...BASE_OWN },
-  owner_upside: { pp: 80, loan: 50, rate: 13.96, tenor: 15, fee: 7.4, rent: 2500, rentg: 7, resety: 5, resetr: 4500, movec: 20000, app: 5, dev: 3, eq: 8, maint: 0.4, hz: 15, fx: 130, owni: 2000, owns: 12 },
-  optimistic_house: { pp: 80, loan: 50, rate: 13.96, tenor: 15, fee: 7.4, rent: 2500, rentg: 8, resety: 3, resetr: 5000, movec: 25000, app: 7, dev: 2, eq: 6, maint: 0.4, hz: 15, fx: 130, ...BASE_OWN },
-  optimistic_invest: { pp: 80, loan: 50, rate: 13.96, tenor: 15, fee: 7.4, rent: 2500, rentg: 3, resety: 0, resetr: 4500, movec: 20000, app: 2, dev: 5, eq: 10, maint: 0.4, hz: 15, fx: 130, ...NO_OWN },
-  worst_case_rent: { pp: 80, loan: 50, rate: 13.96, tenor: 15, fee: 7.4, rent: 2500, rentg: 10, resety: 1, resetr: 5500, movec: 30000, app: 6, dev: 4, eq: 8, maint: 0.4, hz: 15, fx: 130, ...BASE_OWN },
+  base: { pp: 80, loan: 50, rate: 13.96, tenor: 15, fee: 7.4, digit: 150000, rent: 2500, rentg: 7, resety: 5, resetr: 4500, movec: 20000, app: 5, dev: 3, eq: 8, maint: 0.4, hz: 15, fx: 130, ...BASE_OWN },
+  cash_heavy: { pp: 80, loan: 30, rate: 13.96, tenor: 15, fee: 7.4, digit: 150000, rent: 2500, rentg: 7, resety: 5, resetr: 4500, movec: 20000, app: 5, dev: 3, eq: 8, maint: 0.4, hz: 15, fx: 130, ...BASE_OWN },
+  max_loan: { pp: 80, loan: 60, rate: 13.96, tenor: 15, fee: 7.4, digit: 150000, rent: 2500, rentg: 7, resety: 5, resetr: 4500, movec: 20000, app: 5, dev: 3, eq: 8, maint: 0.4, hz: 15, fx: 130, ...BASE_OWN },
+  outright: { pp: 80, loan: 0, rate: 13.96, tenor: 15, fee: 0, digit: 150000, rent: 2500, rentg: 7, resety: 5, resetr: 4500, movec: 20000, app: 5, dev: 3, eq: 8, maint: 0.4, hz: 15, fx: 130, ...BASE_OWN },
+  owner_upside: { pp: 80, loan: 50, rate: 13.96, tenor: 15, fee: 7.4, digit: 150000, rent: 2500, rentg: 7, resety: 5, resetr: 4500, movec: 20000, app: 5, dev: 3, eq: 8, maint: 0.4, hz: 15, fx: 130, owni: 2000, owns: 12 },
+  optimistic_house: { pp: 80, loan: 50, rate: 13.96, tenor: 15, fee: 7.4, digit: 150000, rent: 2500, rentg: 8, resety: 3, resetr: 5000, movec: 25000, app: 7, dev: 2, eq: 6, maint: 0.4, hz: 15, fx: 130, ...BASE_OWN },
+  optimistic_invest: { pp: 80, loan: 50, rate: 13.96, tenor: 15, fee: 7.4, digit: 150000, rent: 2500, rentg: 3, resety: 0, resetr: 4500, movec: 20000, app: 2, dev: 5, eq: 10, maint: 0.4, hz: 15, fx: 130, ...NO_OWN },
+  worst_case_rent: { pp: 80, loan: 50, rate: 13.96, tenor: 15, fee: 7.4, digit: 150000, rent: 2500, rentg: 10, resety: 1, resetr: 5500, movec: 30000, app: 6, dev: 4, eq: 8, maint: 0.4, hz: 15, fx: 130, ...BASE_OWN },
 };
 
 function applyPreset(name) {
